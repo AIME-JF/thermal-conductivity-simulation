@@ -1,0 +1,24 @@
+[
+  {
+    "task_id": "2a8c4bd4-fa1c-4f9c-984c-18059805252c",
+    "model_type": "steady",
+    "config": {
+      "epochs": 100,
+      "batch_size": 32,
+      "learning_rate": 0.001,
+      "validation_split": 0.2
+    },
+    "status": "completed",
+    "start_time": "2025-08-24T12:38:53.119457",
+    "progress": 100,
+    "message": "训练完成",
+    "log_file": "../results/training_log_2a8c4bd4-fa1c-4f9c-984c-18059805252c.txt",
+    "end_time": "2025-08-24T12:39:04.220587",
+    "duration": 11,
+    "final_metrics": {
+      "final_loss": 0.1,
+      "final_accuracy": 0.95,
+      "epochs_completed": 100
+    }
+  }
+]
