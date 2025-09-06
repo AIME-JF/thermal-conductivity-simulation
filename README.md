@@ -1,6 +1,7 @@
 # 热传导实验虚拟仿真Web应用
 
 基于稳态法和准稳态法的导热系数测量虚拟仿真实验平台，支持在线参数设定、实时曲线显示、神经网络修正和数据导出功能。
+<img width="1336" height="1073" alt="image" src="https://github.com/user-attachments/assets/9c9c2af1-db4d-4245-a9d4-1847809a27e7" />
 
 ## 🌟 功能特性
 
