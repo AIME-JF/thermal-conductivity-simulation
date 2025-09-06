@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter
 from matplotlib.gridspec import GridSpec
+import sys
 
 # ========================
 # 铜材料物理参数
@@ -111,11 +112,11 @@ class CopperThermalAnalyzer:
             'ratio': 比值
         }
         """
-        # 验证输入值范围
-        if not (self.T1.min() <= T1_val <= self.T1.max()):
-            raise ValueError(f"T1值{T1_val}超出数据范围({self.T1.min():.1f}-{self.T1.max():.1f}°C)")
-        if not (self.T2.min() <= T2_val <= self.T2.max()):
-            raise ValueError(f"T2值{T2_val}超出数据范围({self.T2.min():.1f}-{self.T2.max():.1f}°C)")
+        # 验证输入值范围 - 使用统一的温度范围
+        if not (38.2 <= T1_val <= 100.0):
+            raise ValueError(f"T1值{T1_val}超出数据范围(38.2-100.0°C)")
+        if not (38.2 <= T2_val <= 100.0):
+            raise ValueError(f"T2值{T2_val}超出数据范围(38.2-100.0°C)")
 
         # 反向插值（因温度随时间递减）
         t1 = np.interp(T1_val, self.T1[::-1], self.time[::-1])
@@ -188,6 +189,28 @@ if __name__ == "__main__":
     print(f"温度范围 T1: {analyzer.T1.min():.1f}°C - {analyzer.T1.max():.1f}°C")
     print(f"温度范围 T2: {analyzer.T2.min():.1f}°C - {analyzer.T2.max():.1f}°C")
     print(f"最大时间差: {analyzer.time[-1]:.1f}s\n")
+    
+    # 命令行参数支持
+    if len(sys.argv) == 3:
+        try:
+            T1_input = float(sys.argv[1])
+            T2_input = float(sys.argv[2])
+            
+            result = analyzer.calculate_timedelta_ratio(T1_input, T2_input)
+            
+            if 'error' in result:
+                print(f"计算警告: {result['error']}")
+            else:
+                print("\n分析结果：")
+                print(f"T1={T1_input}°C 发生在 {result['t1']:.2f}s")
+                print(f"T2={T2_input}°C 发生在 {result['t2']:.2f}s")
+                print(f"时间差 Δt = {result['delta_t']:.2f}s")
+                print(f"温度差 ΔT = {result['delta_T']:.2f}°C")
+                print(f"特征比值 ΔT/Δt = {result['ratio']:.4f} °C/s\n")
+            sys.exit(0)  # 直接退出，不进入交互模式
+        except ValueError as e:
+            print(f"命令行参数错误: {e}")
+            sys.exit(1)
     
     # 交互式分析
     while True:

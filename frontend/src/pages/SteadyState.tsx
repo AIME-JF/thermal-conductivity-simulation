@@ -44,8 +44,8 @@ const MATERIAL_DEFAULTS = {
 
 export default function SteadyState() {
   const [formData, setFormData] = useState<FormData>({
-    T1: 75,
-    T2: 52,
+    T1: 99,
+    T2: 50,
     mode: 'auto',
     duration: 3600,
     noise: 0.1,
@@ -66,10 +66,10 @@ export default function SteadyState() {
   const validateInput = (field: keyof FormData, value: number): string | null => {
     switch (field) {
       case 'T1':
-        if (value <= 0 || value > 1000) return 'T1温度必须在0-1000°C范围内';
+        if (value < 38.2 || value > 100.0) return 'T1温度必须在38.2-100.0°C范围内';
         break;
       case 'T2':
-        if (value <= 0 || value > 1000) return 'T2温度必须在0-1000°C范围内';
+        if (value < 38.2 || value > 100.0) return 'T2温度必须在38.2-100.0°C范围内';
         break;
       case 'duration':
         if (value < 300 || value > 7200) return '仿真时长必须在300-7200秒范围内';
@@ -176,15 +176,15 @@ export default function SteadyState() {
       setError(null);
       setSuccess(null);
       
-      // 客户端验证
-      if (formData.T1 <= formData.T2) {
-        setError('T1温度必须大于T2温度');
+      // 客户端验证 - 根据实际物理模型调整
+      if (formData.T1 < formData.T2) {
+        setError('T1温度应该大于等于T2温度（热传导方向）');
         setLoading(false);
         return;
       }
       
-      if (Math.abs(formData.T1 - formData.T2) < 5) {
-        setError('T1和T2温差必须大于5°C');
+      if (Math.abs(formData.T1 - formData.T2) < 0.1) {
+        setError('T1和T2温差必须大于0.1°C以确保计算精度');
         setLoading(false);
         return;
       }
@@ -323,10 +323,10 @@ export default function SteadyState() {
                   onChange={(value) => handleInputChange('T1', value as number)}
                   type="number"
                   unit="°C"
-                  min={25}
-                  max={150}
+                  min={38.2}
+                  max={100.0}
                   step={0.1}
-                  hint="范围: 25-150°C"
+                  hint="范围: 38.2-100.0°C"
                   error={validationErrors.T1}
                   required
                 />
@@ -337,10 +337,10 @@ export default function SteadyState() {
                   onChange={(value) => handleInputChange('T2', value as number)}
                   type="number"
                   unit="°C"
-                  min={20}
-                  max={100}
+                  min={38.2}
+                  max={100.0}
                   step={0.1}
-                  hint="范围: 20-100°C"
+                  hint="范围: 38.2-100.0°C"
                   error={validationErrors.T2}
                   required
                 />

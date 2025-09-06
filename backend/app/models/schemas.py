@@ -18,8 +18,8 @@ class ExperimentMethod(str, Enum):
 # 稳态法相关模型
 class SteadyStateRequest(BaseModel):
     """稳态法预测请求"""
-    T1: float = Field(..., description="热端表面温度 (°C)", ge=25, le=150)
-    T2: float = Field(..., description="冷端表面温度 (°C)", ge=20, le=100)
+    T1: float = Field(..., description="热端表面温度 (°C)", ge=38.2, le=100.0)
+    T2: float = Field(..., description="冷端表面温度 (°C)", ge=38.2, le=100.0)
     selectedModel: Optional[str] = Field(default="default", description="选择的模型 (default或模型文件名)")
     options: Optional[Dict[str, Any]] = Field(default_factory=dict, description="可选参数")
     

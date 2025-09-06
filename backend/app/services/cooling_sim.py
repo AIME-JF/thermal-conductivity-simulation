@@ -17,7 +17,7 @@ class CoolingSimulator:
         
         # 环境参数
         self.env_params = {
-            "T_ambient": 25.0,  # °C
+            "T_ambient": 25.0,  # °C (默认值，会在仿真时更新)
             "h_convection": 10.0,  # W/(m²·K)
             "stefan_boltzmann": 5.67e-8,  # W/(m²·K⁴)
         }
@@ -47,6 +47,11 @@ class CoolingSimulator:
         
         return dT_dt
     
+    def _cooling_law_python_style(self, t: float, T: float, h: float, A: float, m: float, T_ambient: float) -> float:
+        """与Python脚本相同的冷却定律函数"""
+        c = self.copper_params['specific_heat']  # 比热容
+        return -h * A / (m * c) * (T - T_ambient)
+    
     def _improved_euler_step(self, T: float, dt: float) -> float:
         """改进欧拉法求解"""
         k1 = self._cooling_rate(T)
@@ -73,56 +78,130 @@ class CoolingSimulator:
         
         return delta_ratios
     
-    async def simulate(self, duration: int = 3600, noise: float = 0.1) -> Dict[str, List[float]]:
-        """铜块冷却仿真"""
-        dt = 1.0  # 时间步长（秒）
-        steps = int(duration / dt)
+    async def simulate(self, duration: int = 3600, noise: float = 0.1, initial_temp: float = 100.0, ambient_temp: float = 25.0) -> Dict[str, List[float]]:
+        """铜块冷却仿真 - 与Python脚本保持一致的算法"""
+        # 更新环境温度
+        self.env_params["T_ambient"] = ambient_temp
         
-        # 初始化数组
-        time = np.linspace(0, duration, steps)
-        T1 = np.zeros(steps)  # 热端温度
-        T2 = np.zeros(steps)  # 冷端温度
+        # 使用与Python脚本相同的参数
+        params = {
+            'initial_temp': initial_temp,
+            'ambient_temp': ambient_temp,
+            'volume': 1e-5,  # 样品体积 (m³)
+            'cooling_time': duration
+        }
         
-        # 初始条件
-        T1[0] = 100.0  # °C
-        T2[0] = 95.0   # °C
+        # 计算物理量
+        m = self.copper_params['density'] * params['volume']  # 质量 (kg)
+        A = 6 * (params['volume']**(1/3))**2  # 表面积 (m²)
         
-        # 数值求解
-        for i in range(1, steps):
-            T1[i] = self._improved_euler_step(T1[i-1], dt)
-            T2[i] = self._improved_euler_step(T2[i-1], dt)
-            
-            # 确保T2略低于T1
-            if T2[i] >= T1[i]:
-                T2[i] = T1[i] - 1.0
+        # 数值求解（与Python脚本相同的时间步长）
+        time = np.linspace(0, params['cooling_time'], 1000)
+        T1 = np.zeros_like(time)
+        T1[0] = params['initial_temp']
+        h = 12  # 优化后的对流系数 (W/m²·K)
+        
+        # 改进的欧拉法（与Python脚本相同的算法）
+        for i in range(1, len(time)):
+            dt = time[i] - time[i-1]
+            k1 = self._cooling_law_python_style(time[i-1], T1[i-1], h, A, m, ambient_temp)
+            k2 = self._cooling_law_python_style(time[i-1] + dt/2, T1[i-1] + k1*dt/2, h, A, m, ambient_temp)
+            T1[i] = T1[i-1] + k2 * dt
         
         # 添加噪声
         if noise > 0:
-            T1 += np.random.normal(0, noise, steps)
-            T2 += np.random.normal(0, noise, steps)
+            T1 += np.random.normal(0, noise, T1.shape)
         
-        # 平滑处理
-        if len(T1) > 51:  # Savgol滤波器需要足够的点数
-            T1_smooth = savgol_filter(T1, 51, 3)
-            T2_smooth = savgol_filter(T2, 51, 3)
+        # 数据平滑（与Python脚本相同）
+        if len(T1) > 21:
+            T1_smooth = savgol_filter(T1, 21, 3)
         else:
             T1_smooth = T1
-            T2_smooth = T2
         
         # 计算温度变化率
-        dT1_dt = np.gradient(T1_smooth, time)
-        dT2_dt = np.gradient(T2_smooth, time)
+        dt_array = np.gradient(time)
+        dTdt = np.gradient(T1_smooth) / dt_array
+        
+        # 计算内部温度T2（与Python脚本相同的方法）
+        thickness = 5e-3  # 样品厚度5mm
+        diameter = 0.1    # 接触面直径10cm
+        contact_area = np.pi * (diameter/2)**2
+        
+        # 热流计算
+        mass = self.copper_params['density'] * 1e-5  # 1cm³样品
+        Q = -mass * self.copper_params['specific_heat'] * dTdt
+        
+        # T2温度计算
+        T2 = T1_smooth - (Q * thickness) / (self.copper_params['thermal_conductivity'] * contact_area)
         
         # 计算ΔT/Δt比值
-        delta_ratios = self._calculate_delta_ratios(T1_smooth, T2_smooth, time)
+        delta_ratios = self._calculate_delta_ratios(T1_smooth, T2, time)
         
         return {
             "time": time.tolist(),
             "T1": T1_smooth.tolist(),
-            "T2": T2_smooth.tolist(),
-            "dTdt": dT1_dt.tolist(),
+            "T2": T2.tolist(),
+            "dTdt": dTdt.tolist(),
             "deltaRatios": delta_ratios.tolist()
         }
+    
+    async def analyze_delta_t_ratio(self, T1: float, T2: float) -> str:
+        """稳态法ΔT Δt分析 - 基于用户提供的Python脚本逻辑"""
+        try:
+            # 生成冷却曲线数据
+            cooling_data = await self.simulate(duration=1800, noise=0.2)
+            
+            # 转换为numpy数组便于计算
+            time_array = np.array(cooling_data["time"])
+            T1_array = np.array(cooling_data["T1"])
+            T2_array = np.array(cooling_data["T2"])
+            
+            # 验证输入值范围 - 使用统一的温度范围
+            if not (38.2 <= T1 <= 100.0):
+                return f"错误: T1值{T1}超出数据范围(38.2-100.0°C)"
+            if not (38.2 <= T2 <= 100.0):
+                return f"错误: T2值{T2}超出数据范围(38.2-100.0°C)"
+            
+            # 反向插值（因温度随时间递减）
+            t1 = np.interp(T1, T1_array[::-1], time_array[::-1])
+            t2 = np.interp(T2, T2_array[::-1], time_array[::-1])
+            
+            delta_t = abs(t2 - t1)
+            delta_T = T1 - T2
+            
+            if delta_t < 1e-6:  # 避免除零
+                return "错误: 时间差过小，可能导致计算不稳定"
+            
+            ratio = delta_T / delta_t
+            
+            # 格式化分析结果
+            result = f"""稳态法ΔT Δt分析结果：
+
+输入参数：
+- T1 = {T1}°C
+- T2 = {T2}°C
+
+分析结果：
+- T1={T1}°C 发生在 {t1:.2f}s
+- T2={T2}°C 发生在 {t2:.2f}s
+- 时间差 Δt = {delta_t:.2f}s
+- 温度差 ΔT = {delta_T:.2f}°C
+- 特征比值 ΔT/Δt = {ratio:.4f} °C/s
+
+实验参数摘要：
+- 温度采样点数量: {len(time_array)}
+- 温度范围 T1: {T1_array.min():.1f}°C - {T1_array.max():.1f}°C
+- 温度范围 T2: {T2_array.min():.1f}°C - {T2_array.max():.1f}°C
+- 最大时间差: {time_array[-1]:.1f}s
+
+物理意义：
+该比值反映了铜材料在指定温度条件下的热传导特性，
+可用于导热系数的进一步计算和分析。"""
+            
+            return result
+            
+        except Exception as e:
+            return f"分析过程发生错误: {str(e)}"
 
 class CopperThermalAnalyzer:
     """铜材料热分析器"""
